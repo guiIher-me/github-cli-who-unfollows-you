@@ -1,0 +1,29 @@
+{
+  "name": "github-who-unfollows-you",
+  "version": "1.0.0",
+  "description": "CLI tool to manage GitHub follow relationships - identify and unfollow users who don't follow back",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "github-unfollow": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "github",
+    "cli",
+    "followers",
+    "unfollow",
+    "social"
+  ],
+  "author": "Guilherme Cardoso",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
