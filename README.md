@@ -100,6 +100,7 @@ github-who-unfollows-you/
 ├── package.json
 ├── .env.example
 ├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
