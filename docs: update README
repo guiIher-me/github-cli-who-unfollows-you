@@ -20,7 +20,7 @@ A clean, interactive CLI tool to help you manage your GitHub follow relationship
 
 1. Clone or download this repository:
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:guiIher-me/github-who-unfollows-you.git
    cd github-who-unfollows-you
    ```
 
