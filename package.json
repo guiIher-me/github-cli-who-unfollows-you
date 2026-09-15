@@ -8,7 +8,10 @@
     "github-unfollow": "./src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "list:not-following-back": "node src/index.js list:not-following-back",
+    "unfollow:not-following-back": "node src/index.js unfollow:not-following-back",
+    "follow:followers": "node src/index.js follow:followers"
   },
   "keywords": [
     "github",

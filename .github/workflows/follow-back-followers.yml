@@ -1,0 +1,38 @@
+name: Follow back followers
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview the users without following anyone.
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  follow-back:
+    name: Follow users who follow you
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_FOLLOW_TOKEN }}
+      GITHUB_USERNAME: ${{ github.repository_owner }}
+      DRY_RUN: ${{ inputs.dry_run }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Follow users who follow you
+        run: npm run follow:followers -- --yes

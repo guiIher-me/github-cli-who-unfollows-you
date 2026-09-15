@@ -20,7 +20,8 @@ export function validateConfig() {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(', ')}\n` +
-      'Please create a .env file based on .env.example and fill in your GitHub credentials.'
+      'For local use, create a .env file based on .env.example. ' +
+      'For GitHub Actions, add the required repository secrets/environment variables.'
     );
   }
 
