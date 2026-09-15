@@ -101,3 +101,18 @@ export async function unfollowUser(username) {
   // 204 No Content is the success response for DELETE
   return response.status === 204;
 }
+
+/**
+ * Follows a specific user
+ * @param {string} username - The username to follow
+ * @returns {Promise<boolean>} True if successful, false otherwise
+ */
+export async function followUser(username) {
+  const response = await fetch(`${BASE_URL}/user/following/${username}`, {
+    method: 'PUT',
+    headers: getHeaders()
+  });
+
+  // 204 No Content is the success response for PUT
+  return response.status === 204;
+}

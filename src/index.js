@@ -6,8 +6,8 @@
  */
 
 import { validateConfig } from './config.js';
-import { getFollowing, getFollowers, getRateLimit, unfollowUser } from './github.js';
-import { findNotFollowingBack } from './followers.js';
+import { getFollowing, getFollowers, getRateLimit, unfollowUser, followUser } from './github.js';
+import { findNotFollowingBack, findFollowersNotFollowedBack } from './followers.js';
 import {
   printHeader,
   printMenu,
@@ -23,102 +23,210 @@ import {
 } from './ui.js';
 
 /**
+ * Fetches the authenticated user's follow relationship lists
+ * @returns {Promise<Object>} Object with following and followers arrays
+ */
+async function getFollowRelationships() {
+  printInfo('Fetching your following list...');
+  const following = await getFollowing();
+
+  printInfo('Fetching your followers list...');
+  const followers = await getFollowers();
+
+  return { following, followers };
+}
+
+/**
+ * Parses non-interactive command options
+ * @param {Array<string>} args - CLI arguments after the command name
+ * @returns {Object} Parsed options
+ */
+function parseCommandOptions(args) {
+  return {
+    yes: args.includes('--yes'),
+    dryRun: args.includes('--dry-run') || process.env.DRY_RUN === 'true'
+  };
+}
+
+/**
  * Lists all users who don't follow back
  * Fetches data, compares, and displays results
  */
-async function listNotFollowingBack() {
+async function listNotFollowingBack({ failOnError = false } = {}) {
   try {
-    printInfo('Fetching your following list...');
-    const following = await getFollowing();
-
-    printInfo('Fetching your followers list...');
-    const followers = await getFollowers();
-
+    const { following, followers } = await getFollowRelationships();
     const notFollowingBack = findNotFollowingBack(following, followers);
     printUserList(notFollowingBack);
 
   } catch (error) {
+    if (failOnError) {
+      throw error;
+    }
+
     printError(error.message);
   }
 }
 
 /**
- * Unfollows all users who don't follow back
- * Checks rate limit, confirms action, and processes unfollows
+ * Runs a bulk follow relationship action
+ * Checks rate limit, confirms action, and processes users
  */
-async function unfollowAllNotFollowingBack() {
-  try {
-    // Check rate limit first
-    printInfo('Checking API rate limit...');
-    const rateLimit = await getRateLimit();
-    printRateLimitWarning(rateLimit);
+async function runBulkRelationshipAction({
+  title,
+  emptyMessage,
+  confirmationMessage,
+  findTargets,
+  performAction,
+  successLabel,
+  failureLabel,
+  actionSummary,
+  yes = false,
+  dryRun = false
+}) {
+  // Check rate limit first
+  printInfo('Checking API rate limit...');
+  const rateLimit = await getRateLimit();
+  printRateLimitWarning(rateLimit);
 
-    // Warn if rate limit is low
-    if (rateLimit.remaining < 100) {
-      const proceed = await confirmAction(
-        'Your rate limit is low. Do you want to continue anyway?'
-      );
-      if (!proceed) {
-        printInfo('Operation cancelled.');
-        return;
-      }
+  // Warn if rate limit is low
+  if (rateLimit.remaining < 100 && !yes && !dryRun) {
+    const proceed = await confirmAction(
+      'Your rate limit is low. Do you want to continue anyway?'
+    );
+    if (!proceed) {
+      printInfo('Operation cancelled.');
+      return { total: 0, successCount: 0, failedCount: 0 };
     }
+  }
 
-    // Fetch data
-    printInfo('Fetching your following list...');
-    const following = await getFollowing();
+  // Fetch data
+  const { following, followers } = await getFollowRelationships();
+  const targets = findTargets(following, followers);
 
-    printInfo('Fetching your followers list...');
-    const followers = await getFollowers();
+  if (targets.length === 0) {
+    printSuccess(emptyMessage);
+    return { total: 0, successCount: 0, failedCount: 0 };
+  }
 
-    const notFollowingBack = findNotFollowingBack(following, followers);
+  // Show list and confirm
+  printUserList(targets, title);
 
-    if (notFollowingBack.length === 0) {
-      printSuccess('Great news! Everyone you follow follows you back.');
-      return;
-    }
+  if (dryRun) {
+    printInfo(`Dry run enabled. No users were ${actionSummary}.`);
+    return { total: targets.length, successCount: 0, failedCount: 0, dryRun: true };
+  }
 
-    // Show list and confirm
-    printUserList(notFollowingBack, 'Users to be unfollowed');
-
+  if (!yes) {
     const confirmed = await confirmAction(
-      `Are you sure you want to unfollow ${notFollowingBack.length} user(s)?`
+      confirmationMessage(targets.length)
     );
 
     if (!confirmed) {
       printInfo('Operation cancelled.');
+      return { total: targets.length, successCount: 0, failedCount: 0 };
+    }
+  }
+
+  // Perform action
+  console.log();
+  printInfo('Starting process...\n');
+
+  let successCount = 0;
+  let failedCount = 0;
+
+  for (const user of targets) {
+    const success = await performAction(user.login);
+    printProgress(user.login, success, successLabel, failureLabel);
+
+    if (success) {
+      successCount++;
+    } else {
+      failedCount++;
+    }
+
+    // Small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  printSummary(targets.length, successCount, failedCount);
+
+  if (successCount > 0) {
+    printSuccess(`${successLabel} ${successCount} user(s)!`);
+  }
+
+  return { total: targets.length, successCount, failedCount };
+}
+
+/**
+ * Unfollows all users who don't follow back
+ * Checks rate limit, confirms action, and processes unfollows
+ * @param {Object} options - Command options
+ * @returns {Promise<Object>} Operation summary
+ */
+async function unfollowAllNotFollowingBack(options = {}) {
+  return await runBulkRelationshipAction({
+    title: 'Users to be unfollowed',
+    emptyMessage: 'Great news! Everyone you follow follows you back.',
+    confirmationMessage: total => `Are you sure you want to unfollow ${total} user(s)?`,
+    findTargets: findNotFollowingBack,
+    performAction: unfollowUser,
+    successLabel: 'Unfollowed',
+    failureLabel: 'Failed to unfollow',
+    actionSummary: 'unfollowed',
+    ...options
+  });
+}
+
+/**
+ * Follows all users who follow you but you don't follow back
+ * Checks rate limit, confirms action, and processes follows
+ * @param {Object} options - Command options
+ * @returns {Promise<Object>} Operation summary
+ */
+async function followAllFollowersNotFollowedBack(options = {}) {
+  return await runBulkRelationshipAction({
+    title: 'Users to be followed back',
+    emptyMessage: 'Great news! You already follow back everyone who follows you.',
+    confirmationMessage: total => `Are you sure you want to follow ${total} user(s)?`,
+    findTargets: findFollowersNotFollowedBack,
+    performAction: followUser,
+    successLabel: 'Followed',
+    failureLabel: 'Failed to follow',
+    actionSummary: 'followed',
+    ...options
+  });
+}
+
+/**
+ * Handles non-interactive commands for automation and GitHub Actions
+ * @param {string} command - Command name
+ * @param {Array<string>} args - Command arguments
+ */
+async function runCommand(command, args) {
+  const options = parseCommandOptions(args);
+  let result;
+
+  switch (command) {
+    case 'list:not-following-back':
+      await listNotFollowingBack({ failOnError: true });
       return;
-    }
 
-    // Perform unfollows
-    console.log();
-    printInfo('Starting unfollow process...\n');
+    case 'unfollow:not-following-back':
+      result = await unfollowAllNotFollowingBack(options);
+      break;
 
-    let successCount = 0;
-    let failedCount = 0;
+    case 'follow:followers':
+      result = await followAllFollowersNotFollowedBack(options);
+      break;
 
-    for (const user of notFollowingBack) {
-      const success = await unfollowUser(user.login);
-      printProgress(user.login, success);
+    default:
+      printError(`Unknown command: ${command}`);
+      printInfo('Available commands: list:not-following-back, unfollow:not-following-back, follow:followers');
+      process.exit(1);
+  }
 
-      if (success) {
-        successCount++;
-      } else {
-        failedCount++;
-      }
-
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    printSummary(notFollowingBack.length, successCount, failedCount);
-
-    if (successCount > 0) {
-      printSuccess(`Successfully unfollowed ${successCount} user(s)!`);
-    }
-
-  } catch (error) {
-    printError(error.message);
+  if (result?.failedCount > 0) {
+    process.exitCode = 1;
   }
 }
 
@@ -142,7 +250,11 @@ async function runCLI() {
         break;
 
       case '2':
-        await unfollowAllNotFollowingBack();
+        try {
+          await unfollowAllNotFollowingBack();
+        } catch (error) {
+          printError(error.message);
+        }
         break;
 
       case '0':
@@ -166,6 +278,13 @@ async function main() {
   try {
     // Validate environment variables
     validateConfig();
+
+    const [command, ...args] = process.argv.slice(2);
+
+    if (command) {
+      await runCommand(command, args);
+      return;
+    }
 
     // Handle Ctrl+C gracefully
     process.on('SIGINT', () => {

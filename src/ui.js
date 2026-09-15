@@ -45,15 +45,22 @@ export function printUserList(users, title = 'Users not following back') {
 }
 
 /**
- * Prints progress during unfollow operations
- * @param {string} username - Username being unfollowed
- * @param {boolean} success - Whether the unfollow was successful
+ * Prints progress during bulk operations
+ * @param {string} username - Username being processed
+ * @param {boolean} success - Whether the operation was successful
+ * @param {string} successLabel - Label to print on success
+ * @param {string} failureLabel - Label to print on failure
  */
-export function printProgress(username, success) {
+export function printProgress(
+  username,
+  success,
+  successLabel = 'Unfollowed',
+  failureLabel = 'Failed to unfollow'
+) {
   if (success) {
-    console.log(chalk.green(`✓ Unfollowed ${username}`));
+    console.log(chalk.green(`✓ ${successLabel} ${username}`));
   } else {
-    console.log(chalk.red(`✗ Failed to unfollow ${username}`));
+    console.log(chalk.red(`✗ ${failureLabel} ${username}`));
   }
 }
 
