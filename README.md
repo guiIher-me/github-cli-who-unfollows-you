@@ -6,6 +6,8 @@ A clean, interactive CLI tool to help you manage your GitHub follow relationship
 
 - **List Non-Followers**: See all users you follow who don't follow you back
 - **Bulk Unfollow**: Automatically unfollow multiple users with confirmation
+- **Bulk Follow Back**: Automatically follow users who follow you but you don't follow back
+- **GitHub Actions Workflows**: Run unfollow and follow-back actions manually from GitHub
 - **Rate Limit Protection**: Checks API quota before destructive operations
 - **Interactive Menu**: User-friendly interface with colored output
 - **Pagination Support**: Handles accounts with 100+ followers/following
@@ -87,6 +89,69 @@ Displays all users you follow who don't follow you back, with their profile URLs
 
 Press `0` or `Ctrl+C` to exit gracefully.
 
+### Automation Commands
+
+These commands are designed for scripts and GitHub Actions:
+
+```bash
+npm run list:not-following-back
+npm run unfollow:not-following-back -- --yes
+npm run follow:followers -- --yes
+```
+
+Add `--dry-run` or set `DRY_RUN=true` to preview the affected users without changing your follow relationships:
+
+```bash
+npm run unfollow:not-following-back -- --yes --dry-run
+npm run follow:followers -- --yes --dry-run
+```
+
+## GitHub Actions
+
+This repository includes two manual workflows:
+
+- **Unfollow non-followers**: unfollows users you follow who do not follow you back
+- **Follow back followers**: follows users who follow you but you do not follow back
+
+The built-in `GITHUB_TOKEN` cannot manage your personal follow relationships, so the workflows require a personal access token saved as `GH_FOLLOW_TOKEN`.
+
+### Add the GitHub Secret
+
+1. Create a classic personal access token:
+   - Open [GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens).
+   - Click **Generate new token (classic)**.
+   - Give it a clear name, such as `GitHub Follow Manager`.
+   - Select the **`user:follow`** scope.
+   - Click **Generate token** and copy the token immediately.
+
+2. Add the token to this repository:
+   - Open this repository on GitHub.
+   - Go to **Settings > Secrets and variables > Actions**.
+   - Click **New repository secret**.
+   - Set **Name** to `GH_FOLLOW_TOKEN`.
+   - Paste the personal access token into **Secret**.
+   - Click **Add secret**.
+
+### Run the Workflows
+
+1. Open this repository on GitHub.
+2. Go to the **Actions** tab.
+3. Select one of these workflows from the left sidebar:
+   - **Unfollow non-followers**
+   - **Follow back followers**
+4. Click **Run workflow**.
+5. Choose the branch to run from.
+6. Leave `dry_run` as `true` for the first run so the workflow only lists affected users.
+7. Review the workflow logs.
+8. Run the same workflow again with `dry_run` set to `false` when you are ready to apply the changes.
+
+The workflow actions are:
+
+- **Unfollow non-followers** runs `npm run unfollow:not-following-back -- --yes`
+- **Follow back followers** runs `npm run follow:followers -- --yes`
+
+Both workflows use `DRY_RUN=true` by default, so no follow relationships change until you explicitly choose `dry_run=false`.
+
 ## Project Structure
 
 ```
@@ -97,6 +162,8 @@ github-who-unfollows-you/
 │   ├── followers.js   # Follow relationship comparison logic
 │   ├── ui.js          # Terminal output and user input
 │   └── config.js      # Environment variable validation
+├── .github/
+│   └── workflows/     # Manual follow/unfollow GitHub Actions
 ├── package.json
 ├── .env.example
 ├── .gitignore
@@ -150,5 +217,3 @@ GitHub's API has rate limits (typically 5,000 requests/hour for authenticated us
 ## License
 
 MIT
-
-
